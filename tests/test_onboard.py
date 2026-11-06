@@ -294,8 +294,9 @@ class EndToEnd(unittest.TestCase):
         self.run_cli()
         path = self.root / "docs" / "sbx.md"
         before = parse_config(path.read_text(encoding="utf-8"))
-        with mock.patch("sbxlib.adapters.project_scan._shard_files", lambda _root: [self.root / ATTACK]):  # NTFS cannot hold this name
-            self.assertEqual(self.run_cli()[0], 0)
+        with mock.patch("sbxlib.adapters.project_scan._shard_files", lambda root: [root / ATTACK]):
+            code, output = self.run_cli()
+            self.assertEqual(code, 0, output)
         self.assertEqual(parse_config(path.read_text(encoding="utf-8")), before)
 
     def test_a_rerun_over_a_file_with_two_blocks_refuses_and_writes_nothing(self) -> None:
