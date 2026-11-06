@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ffroliva",
+  "description": "A skill for Docker Sandboxes (sbx).",
+  "owner": { "name": "ffroliva" },
+  "plugins": [
+    {
+      "name": "ffroliva-skills",
+      "description": "Docker Sandboxes (sbx): a runbook for trusted and untrusted work in cloud boxes.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

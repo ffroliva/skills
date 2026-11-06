@@ -1,0 +1,18 @@
+target-version = "py312"
+line-length = 140
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PERF", "RUF", "S", "PT018", "SIM"]
+ignore = [
+  "S607", # sbx, gh and git are resolved from PATH by design
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S", "E501"]
+
+[lint.isort]
+known-first-party = ["sbxlib", "sbx_check", "sbx_detect", "sbx_drift", "sbx_fleet", "sbx_onboard", "sbx_shard", "sbx_trust", "validate_skill"]
+section-order = ["future", "standard-library", "test-plumbing", "third-party", "first-party", "local-folder"]
+
+[lint.isort.sections]
+test-plumbing = ["helpers", "fakes"]

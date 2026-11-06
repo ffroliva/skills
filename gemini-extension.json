@@ -1,0 +1,5 @@
+{
+  "name": "sandbox-runbook",
+  "version": "0.1.0",
+  "description": "Docker Sandboxes (sbx): a runbook for trusted and untrusted work in cloud boxes, with scripts that run a test fleet and verify the result."
+}

@@ -1,0 +1,12 @@
+{
+  "name": "ffroliva",
+  "interface": { "displayName": "ffroliva" },
+  "plugins": [
+    {
+      "name": "ffroliva-skills",
+      "source": { "source": "url", "url": "https://github.com/ffroliva/skills.git", "ref": "master" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}

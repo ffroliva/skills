@@ -1,0 +1,23 @@
+# The unprivileged half of the fork pull request recipe. Copy it to .github/workflows/, beside github-pr-target.yml.
+#
+# For what needs no secret: lint, unit tests, a build. On a fork's pull request GitHub gives this job a read-only token
+# and no secret, and applies fork approval, so it may run the pull request's code. Keep it on a GitHub-hosted runner, and
+# keep anything that needs a secret, sbx included, in github-pr-target.yml. Replace the last step with your own checks.
+name: pull request
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: make test

@@ -1,0 +1,8 @@
+{
+  "include": ["skills/sandbox-runbook/scripts", "scripts"],
+  "exclude": ["**/__pycache__"],
+  "extraPaths": ["skills/sandbox-runbook/scripts"],
+  "executionEnvironments": [{ "root": "tests", "extraPaths": ["skills/sandbox-runbook/scripts", "tests"], "reportPrivateUsage": false }, { "root": "skills/sandbox-runbook/scripts" }],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "strict"
+}

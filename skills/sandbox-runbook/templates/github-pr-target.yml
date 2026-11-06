@@ -1,0 +1,147 @@
+# The privileged half of the fork pull request recipe. Copy it to .github/workflows/ on your default branch.
+# Its other half, github-pr.yml, needs no secret. Read docs/use-cases/contributor-prs.md before using either.
+#
+# What is unsafe is running pull request code in a privileged job. This workflow holds secrets, so it never does:
+# it checks out your default branch and the pinned skill, and nothing else. It reads the trust rules from that
+# default branch, so no pull request's edit decides for itself or for another. Pull request code runs only in a
+# cloud box, which clones the exact commit. An untrusted commit's box has no secret and no token.
+#
+# GitHub's rules for this trigger, read at one commit of github/docs:
+# https://github.com/github/docs/blob/17d6ee52f965e7c46f74b4339d5fa1ad6f4f4493/content/actions/reference/security/securely-using-pull_request_target.md
+# - Fork approval does not gate it, so a stranger's push reaches the jobs below. The sbx-external environment's
+#   required reviewers are the spend control: a person approves before a box is paid for.
+# - GitHub's default event policy blocks this trigger in public repositories, enforced from 2 December 2026. A public
+#   project must create an Actions event policy that allows pull_request_target, or this workflow will not start.
+#
+# Set up once, by hand, before any secret goes in. GitHub creates an environment named by a job with no protection,
+# and an environment's secrets reach every job that names it, from any branch:
+# - all three environments: Deployment branches and tags, Selected branches and tags, your default branch only.
+#   GitHub matches that rule against GITHUB_REF, which for this trigger is the default branch, so these jobs still
+#   run. Without it, anyone with write access, or a stolen token of theirs, pushes a branch whose job names
+#   sbx-trusted and reads DOCKER_PAT, with no review:
+#   https://github.com/github/docs/blob/17d6ee52f965e7c46f74b4339d5fa1ad6f4f4493/content/actions/reference/workflows-and-actions/deployments-and-environments.md#L50
+# - environment sbx-decide: secret SBX_TRUST_TOKEN, the read-only token of docs/reference/github-token.md
+# - environment sbx-trusted: secrets SBX_TRUST_TOKEN and DOCKER_PAT
+# - environment sbx-external: required reviewers, before DOCKER_PAT, its only secret. Without them every stranger's
+#   push starts a paid box, and nothing here can tell
+# - the default branch: a review to merge, with CODEOWNERS on docs/sbx.md and .github/workflows/, or one member
+#   rewrites the rules this workflow reads
+# - DOCKER_PAT: a token of a machine account that holds no global secret, and whose spend is a ceiling you accept
+# - repository variables: SBX_SKILL_SHA, a commit on the skill's default branch or a release tag, copied from
+#   github.com/ffroliva/skills itself, never from a link someone sent: both jobs refuse any other commit, since
+#   GitHub serves a fork's commit under this name too. DOCKER_USERNAME, the account of that PAT
+#
+# Unverified until a real run: none of this has run on GitHub. Docker documents the sign-in below for CI and for
+# cloud sandboxes; the install on a hosted runner, and the whole pair of jobs, have not been tried. Unlike every action
+# here, the install is not pinned: it is Docker's script and the newest docker-sbx package, and it runs in this job.
+name: sbx pull request
+
+on:
+  pull_request_target:  # zizmor: ignore[dangerous-triggers] no step checks out or runs pull request code; see the header
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: sbx-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PR: ${{ github.event.pull_request.number }}
+  SHA: ${{ github.event.pull_request.head.sha }}
+  SBX_SKILL_SHA: ${{ vars.SBX_SKILL_SHA }}
+
+jobs:
+  decide:
+    runs-on: ubuntu-24.04
+    environment: sbx-decide
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      level: ${{ steps.check.outputs.level }}
+    steps:
+      - name: Refuse a value that is not a number or a full sha
+        run: '[[ "$SBX_SKILL_SHA" =~ ^[0-9a-f]{40}$ && "$SHA" =~ ^[0-9a-f]{40}$ && "$PR" =~ ^[0-9]+$ ]]'
+      - name: Check out the default branch, whose rules decide
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Check out the pinned skill
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ffroliva/skills
+          ref: ${{ vars.SBX_SKILL_SHA }}
+          path: .sandbox-runbook
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Refuse a skill commit that is not on its default branch or a tag
+        working-directory: .sandbox-runbook
+        run: |
+          git remote set-head origin --auto
+          git merge-base --is-ancestor "$SBX_SKILL_SHA" origin/HEAD || [ -n "$(git tag --points-at "$SBX_SKILL_SHA")" ]
+      - name: Decide
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SBX_TRUST_TOKEN }}
+        run: |
+          level=untrusted
+          if python3 .sandbox-runbook/skills/sandbox-runbook/scripts/sbx_trust.py check --repo "$GITHUB_REPOSITORY" --pr "$PR" --sha "$SHA" --config docs/sbx.md; then
+            level=trusted
+          fi
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+
+  fleet:
+    needs: decide
+    runs-on: ubuntu-24.04
+    environment: ${{ needs.decide.outputs.level == 'trusted' && 'sbx-trusted' || 'sbx-external' }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse a value that is not a number or a full sha
+        run: '[[ "$SBX_SKILL_SHA" =~ ^[0-9a-f]{40}$ && "$SHA" =~ ^[0-9a-f]{40}$ && "$PR" =~ ^[0-9]+$ ]]'
+      - name: Check out the default branch, whose rules decide
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Check out the pinned skill
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ffroliva/skills
+          ref: ${{ vars.SBX_SKILL_SHA }}
+          path: .sandbox-runbook
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Refuse a skill commit that is not on its default branch or a tag
+        working-directory: .sandbox-runbook
+        run: |
+          git remote set-head origin --auto
+          git merge-base --is-ancestor "$SBX_SKILL_SHA" origin/HEAD || [ -n "$(git tag --points-at "$SBX_SKILL_SHA")" ]
+      - name: Install sbx
+        run: |
+          curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh
+          sudo apt-get install -y docker-sbx
+          sbx version
+      - name: Sign in to Docker
+        env:
+          DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+          DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
+        run: printenv DOCKER_PAT | sbx login --username "$DOCKER_USERNAME" --password-stdin
+      - name: Run the commit in a box, at the level found
+        env:
+          # Empty in sbx-external: with no token the fleet's own check ends untrusted, whatever decide said.
+          GH_TOKEN: ${{ needs.decide.outputs.level == 'trusted' && secrets.SBX_TRUST_TOKEN || '' }}
+        run: |
+          project="${GITHUB_REPOSITORY#*/}"
+          python3 .sandbox-runbook/skills/sandbox-runbook/scripts/sbx_fleet.py --config docs/sbx.md --repo "https://github.com/$GITHUB_REPOSITORY" --sha "$SHA" --pr "$PR" --project "${project:0:20}-pr$PR" --out "$RUNNER_TEMP/sbx-out"
+      - name: Sweep this pull request's boxes
+        if: always()
+        run: |
+          project="${GITHUB_REPOSITORY#*/}"
+          python3 .sandbox-runbook/skills/sandbox-runbook/scripts/sbx_fleet.py --config docs/sbx.md --project "${project:0:20}-pr$PR" --sweep-only
+      - name: Sign out
+        if: always()
+        run: sbx logout --force

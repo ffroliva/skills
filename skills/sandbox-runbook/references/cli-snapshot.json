@@ -1,0 +1,202 @@
+{
+  "cloud_commands": [
+    "attach",
+    "completion",
+    "cp",
+    "create",
+    "diagnose",
+    "env",
+    "exec",
+    "help",
+    "kit",
+    "login",
+    "logout",
+    "ls",
+    "mcp",
+    "move",
+    "policy",
+    "ports",
+    "reset",
+    "rm",
+    "run",
+    "secret",
+    "setup",
+    "stop",
+    "template",
+    "ttl",
+    "tui",
+    "version",
+    "volume"
+  ],
+  "verbs": {
+    "cp": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--debug": "-D",
+        "--follow-link": "-L",
+        "--help": "-h",
+        "--no-input": ""
+      }
+    },
+    "create": {
+      "commands": [
+        "gemini"
+      ],
+      "flags": {
+        "--allow-network": "strings",
+        "--cloud": "",
+        "--cpus": "int",
+        "--debug": "-D",
+        "--deny-network": "strings",
+        "--env": "-e stringArray",
+        "--env-file": "stringArray",
+        "--help": "-h",
+        "--image-ref": "string",
+        "--kit": "strings",
+        "--kit-arg": "stringArray",
+        "--kit-args-file": "stringArray",
+        "--memory": "-m string",
+        "--name": "string",
+        "--no-input": "",
+        "--no-progress": "",
+        "--on-timeout": "string",
+        "--platform": "string",
+        "--static-mcp": "strings",
+        "--template": "-t string",
+        "--ttl": "duration",
+        "--volume": "-v stringArray"
+      }
+    },
+    "exec": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--debug": "-D",
+        "--detach-keys": "string",
+        "--env": "-e stringArray",
+        "--env-file": "stringArray",
+        "--help": "-h",
+        "--interactive": "-i",
+        "--no-input": "",
+        "--tty": "-t",
+        "--workdir": "-w string"
+      }
+    },
+    "ls": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--debug": "-D",
+        "--format": "string",
+        "--help": "-h",
+        "--json": "",
+        "--no-input": "",
+        "--quiet": "-q"
+      }
+    },
+    "policy ls": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--debug": "-D",
+        "--format": "string",
+        "--help": "-h",
+        "--json": "",
+        "--no-input": "",
+        "--quiet": "-q",
+        "--type": "string"
+      }
+    },
+    "rm": {
+      "commands": [],
+      "flags": {
+        "--all": "",
+        "--cloud": "",
+        "--debug": "-D",
+        "--force": "-f",
+        "--format": "string",
+        "--help": "-h",
+        "--json": "",
+        "--no-input": ""
+      }
+    },
+    "secret ls": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--debug": "-D",
+        "--format": "string",
+        "--global": "-g",
+        "--help": "-h",
+        "--json": "",
+        "--no-input": "",
+        "--quiet": "-q",
+        "--sandbox": "string",
+        "--service": "string"
+      }
+    },
+    "secret rm": {
+      "commands": [],
+      "flags": {
+        "--all": "",
+        "--all-sandboxes": "",
+        "--cloud": "",
+        "--debug": "-D",
+        "--force": "-f",
+        "--help": "-h",
+        "--no-input": "",
+        "--registry": "string",
+        "--sandbox": "string"
+      }
+    },
+    "secret set": {
+      "commands": [],
+      "flags": {
+        "--all-sandboxes": "",
+        "--cloud": "",
+        "--command": "string",
+        "--debug": "-D",
+        "--force": "-f",
+        "--help": "-h",
+        "--no-input": "",
+        "--no-verify": "",
+        "--oauth": "",
+        "--password-stdin": "",
+        "--ref": "string",
+        "--refresh": "string",
+        "--registry": "string",
+        "--registry-auth-endpoint": "string",
+        "--sandbox": "string",
+        "--show-error": "",
+        "--token": "-t string",
+        "--username": "string"
+      }
+    },
+    "secret set-custom": {
+      "commands": [],
+      "flags": {
+        "--cloud": "",
+        "--command": "string",
+        "--debug": "-D",
+        "--env": "string",
+        "--format": "string",
+        "--header": "string",
+        "--help": "-h",
+        "--host": "stringArray",
+        "--name": "string",
+        "--no-input": "",
+        "--no-verify": "",
+        "--placeholder": "string",
+        "--ref": "string",
+        "--refresh": "string",
+        "--sandbox": "string",
+        "--show-error": "",
+        "--token": "-t string",
+        "--value": "string",
+        "--value-stdin": ""
+      }
+    }
+  },
+  "version": "0.51.0"
+}
