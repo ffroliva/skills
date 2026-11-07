@@ -26,7 +26,7 @@ class SbxCli:
         self._run = run
 
     def _call(self, *args: str, timeout: int = 300, stdin: str | None = None) -> Done:
-        return self._run(["sbx", "--cloud", *args], stdin, timeout)
+        return self._run(["sbx", "--no-input", "--cloud", *args], stdin, timeout)
 
     def create(self, name: str, request: RunRequest) -> Done:
         return self._call("create", request.template, "--name", name, *create_flags(request), timeout=CREATE_TIMEOUT_S)

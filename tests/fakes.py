@@ -14,6 +14,7 @@ from helpers import SKILL, result_tar
 from sbxlib.ports import CommandTimeout, Done
 
 SNAPSHOT: dict[str, Any] = json.loads((SKILL / "references" / "cli-snapshot.json").read_text(encoding="utf-8"))
+GLOBAL_FLAGS = ("--cloud", "--no-input")
 VERBS_WITH_SUB = ("secret set-custom", "secret set", "secret rm", "secret ls", "policy ls")
 
 
@@ -43,12 +44,16 @@ class FakeSandbox:
         self._lock = threading.Lock()
 
     def __call__(self, argv: Sequence[str], stdin: str | None = None, timeout: int = 60) -> Done:
-        args = list(argv)[1:]
+        raw = list(argv)[1:]
         with self._lock:
-            self.calls.append(args)
+            self.calls.append(raw)
             self.stdins.append(stdin)
         if self.on_call:
-            self.on_call(args)
+            self.on_call(raw)
+        bad_global = _unknown_global(raw)
+        if bad_global:
+            return Done(1, "", f"unknown flag: {bad_global}")
+        args = _strip_global(raw)
         if args == ["version"]:
             return Done(0, self.version_text)
         verb = _verb(args)
@@ -78,8 +83,8 @@ class FakeSandbox:
         return Done(0)
 
     def _exec(self, args: list[str], _stdin: str | None) -> Done:
-        box = args[2]
-        polling = args[3:5] == ["test", "-f"]
+        box = args[1]
+        polling = args[2:4] == ["test", "-f"]
         if (polling and box in self.gone_after_create) or box not in self.boxes:
             return Done(125, "", f"sandbox {box} not found")
         if polling and box in self.never_done:
@@ -87,7 +92,7 @@ class FakeSandbox:
         return Done(0)
 
     def _cp(self, args: list[str], _stdin: str | None) -> Done:
-        source, target = args[2:4]
+        source, target = args[1:3]
         box = (source if ":" in source and not re.match(r"[A-Za-z]:", source) else target).split(":")[0]
         if box not in self.boxes:
             return Done(1, "", f"{box}: not found")
@@ -128,7 +133,7 @@ class FakeSandbox:
         return Done(0)
 
     def _secret_rm(self, args: list[str], _stdin: str | None) -> Done:
-        scope, name = args[args.index("--sandbox") + 1], args[3]
+        scope, name = args[args.index("--sandbox") + 1], args[2]
         kept = [row for row in self.secrets if (row["scope"], row["name"]) != (scope, name)]
         if len(kept) == len(self.secrets):
             return Done(1, "", "not found")
@@ -142,24 +147,40 @@ class FakeSandbox:
         return Done(0, json.dumps({"mode": self.policy_mode, "allow_networks": self.policy_allow, "deny_networks": []}))
 
     def verbs(self) -> list[str]:
-        return [_verb(call) for call in self.calls if call != ["version"]]
+        return [_verb(call) for call in self.calls if _strip_global(call) != ["version"]]
 
     def stdin_of(self, verb: str) -> str | None:
         return next(stdin for call, stdin in zip(self.calls, self.stdins, strict=True) if _verb(call) == verb)
 
 
-def _verb(args: list[str]) -> str:
-    words = args[1:] if args[:1] == ["--cloud"] else args
+def _strip_global(args: Sequence[str]) -> list[str]:
+    index = 0
+    while index < len(args) and args[index] in GLOBAL_FLAGS:
+        index += 1
+    return list(args[index:])
+
+
+def _unknown_global(args: Sequence[str]) -> str:
+    for word in args:
+        if not word.startswith("-"):
+            return ""
+        if word not in GLOBAL_FLAGS:
+            return word
+    return ""
+
+
+def _verb(args: Sequence[str]) -> str:
+    words = _strip_global(args)
     two = " ".join(words[:2])
     return two if two in VERBS_WITH_SUB else words[0]
 
 
-def _unknown_flag(args: list[str], verb: str) -> str:
+def _unknown_flag(args: Sequence[str], verb: str) -> str:
     known = SNAPSHOT["verbs"][verb]["flags"]
-    allowed = set(known) | {value.split()[0] for value in known.values() if value.startswith("-")}
+    allowed = set(known) | {value.split()[0] for value in known.values() if value.startswith("-")} | set(GLOBAL_FLAGS)
     if verb == "exec":  # everything after the box name belongs to the command
         return ""
-    return next((word for word in args[1:] if word.startswith("-") and word != "--cloud" and word not in allowed), "")
+    return next((word for word in args[len(verb.split()):] if word.startswith("-") and word not in allowed), "")
 
 
 class FakeGit:

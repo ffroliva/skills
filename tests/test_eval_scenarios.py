@@ -16,7 +16,7 @@ from eval_scenarios import score  # noqa: E402
 class ScenarioEvals(unittest.TestCase):
     def test_scenarios_have_prompts_ordered_expectations_and_forbids(self) -> None:
         scenarios = json.loads((ROOT / "evals" / "scenarios.json").read_text(encoding="utf-8"))
-        self.assertEqual({item["id"] for item in scenarios}, {"targeted-tests", "sharded-fleet", "contributor-pr", "stale-skill", "leaked-box-cleanup"})
+        self.assertEqual({item["id"] for item in scenarios}, {"targeted-tests", "sharded-fleet", "contributor-pr", "stale-skill", "leaked-box-cleanup", "headless-policy-prompt"})
         for item in scenarios:
             self.assertTrue(item["prompt"])
             self.assertTrue(item["expected"])

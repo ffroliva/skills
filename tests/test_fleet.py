@@ -396,7 +396,7 @@ class Cleanup(Base):
 
     def test_a_custom_secret_host_is_allowed_for_egress(self) -> None:
         self.custom_run()
-        create = next(call for call in self.sbx.calls if call[1] == "create")
+        create = next(call for call in self.sbx.calls if call[call.index("--cloud") + 1] == "create")
         self.assertIn("api.example.com", create)
 
     def test_a_malformed_custom_secret_is_refused_before_create(self) -> None:
@@ -545,7 +545,7 @@ class Cleanup(Base):
 
     def test_an_unreadable_final_listing_is_said_out_loud(self) -> None:
         def on_call(args: list[str]) -> None:
-            if args[1:2] == ["rm"]:
+            if args[args.index("--cloud") + 1 : args.index("--cloud") + 2] == ["rm"]:
                 self.sbx.fail["ls"] = Done(1, "", "boom")
 
         self.sbx.on_call = on_call
@@ -554,7 +554,7 @@ class Cleanup(Base):
 
     def test_an_unreadable_final_listing_never_exits_zero(self) -> None:
         def on_call(args: list[str]) -> None:
-            if args[1:2] == ["rm"]:
+            if args[args.index("--cloud") + 1 : args.index("--cloud") + 2] == ["rm"]:
                 self.sbx.fail["ls"] = Done(1, "", "boom")
 
         self.sbx.on_call = on_call
@@ -1158,7 +1158,34 @@ class Signals(Base):
         self._stop("SIGBREAK")
 
 
-BASH = shutil.which("bash")  # by full path: on Windows a bare name finds the WSL launcher in System32
+def _bash_executable() -> str | None:
+    if os.name != "nt":
+        return shutil.which("bash")
+    git = shutil.which("git")
+    if git is None:
+        return None
+    root = Path(git).resolve().parent.parent
+    return next(
+        (str(path) for path in (root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe") if path.is_file()),
+        None,
+    )
+
+
+BASH = _bash_executable()
+
+
+@unittest.skipUnless(os.name == "nt", "Windows-specific")
+class BashSelection(unittest.TestCase):
+    def test_windows_prefers_git_bash_over_wsl_launcher(self) -> None:
+        git = shutil.which("git")
+        if git is None:
+            self.skipTest("git is not installed")
+        root = Path(git).resolve().parent.parent
+        candidates = (root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe")
+        preferred = next((path for path in candidates if path.is_file()), None)
+        if preferred is None:
+            self.skipTest("Git Bash is not installed")
+        self.assertEqual(Path(BASH).resolve(), preferred.resolve())
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "needs bash and git")

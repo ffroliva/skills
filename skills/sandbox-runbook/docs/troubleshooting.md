@@ -43,6 +43,22 @@ error. "Measured" below means a run on a target project, not independently repro
 
 ## Network
 
+### create-allow-network-prompt
+
+- **Symptom:** an interactive `sbx --cloud create ... --allow-network <host>` without `--no-input` hangs or times out waiting on stdin in a headless run, while `sbx --cloud ls` prints `No sandboxes found`.
+- **Error:** `NETWORK POLICY` followed by `Proceed? (y/N)` on stderr when `--no-input` is omitted. On sbx 0.51.0, passing global `--no-input` before `--cloud` with explicit `--allow-network` flags succeeds (`CREATE_RC=0`) and applies the allowlist only to the created sandbox without changing account-wide policy. `--no-input` is not a general auto-answer: a command that truly requires an interactive response fails with remediation.
+- **Cause:** when the account's global network policy is `deny-all` with an empty allow list (`allow_networks: []`), an interactive `sbx --cloud create ... --allow-network <host>` without `--no-input` prompts for confirmation before creating the box. Because no box was created, an empty `sbx --cloud ls` (`No sandboxes found` or `[]` with `--json`, exit 0) means only an empty inventory, not an authentication failure ([#not-signed-in](#not-signed-in)), service outage ([#settings-platform](#settings-platform)), or quota refusal ([#vcpu-quota](#vcpu-quota)).
+- **Fix:**
+  1. Run bounded read-only diagnostics (`sbx diagnose --json`, `sbx --cloud policy ls --json`, `sbx --cloud ls --json`) and act only on actual errors (`status: fail` or non-zero exit).
+  2. If a background `create` is stuck on the prompt, inspect the recorded PID and confirm its exact commandline or job record before stopping that PID ([Windows background stop](#windows-background-stop), [Windows host pitfalls](pitfalls/windows-host.md)); never kill by process name (`taskkill /IM`, `Stop-Process -Name`, `pkill`).
+  3. Preferred on sbx 0.51.0: pass global `--no-input` before `--cloud` with explicit `--allow-network` flags, a unique `--name`, and `--ttl` (`sbx --no-input --cloud create shell --allow-network <host1> --allow-network <host2> --name <box> --cpus <n> --memory <mem> --ttl <ttl> --on-timeout delete --no-progress`). On sbx 0.51.0 this applies the allowlist to `<box>` only and leaves the account-level `deny-all` policy unchanged.
+  4. Verified two-step per-sandbox fallback if a command or another `sbx` version reports that a required interactive response is missing under `--no-input`:
+     - Create the box without `--allow-network`: `sbx --no-input --cloud create shell --name <box> --cpus <n> --memory <mem> --ttl <ttl> --on-timeout delete --no-progress`
+     - Add the box-scoped allow list: `sbx --no-input --cloud policy allow network --sandbox <box> "<host1>,<host2>"`
+  5. On cleanup, remove only the exact owned box and its scoped rules or secrets (`sbx --no-input --cloud rm -f <box>`, `sbx --cloud secret rm <secret> --sandbox <box> --force`); never run `sbx --cloud rm --all`, `sbx prune`, `sbx reset`, or `policy init allow-all`.
+- **Confirm:** `sbx --cloud policy ls <box> --format json` (or `--json`) exits 0 and lists the allowed hosts under `allow_networks` with `"mode": "deny-all"` on `<box>`, while account-level `sbx --cloud policy ls --format json` (or `--json`) remains `"mode": "deny-all"` with empty `allow_networks` and `deny_networks`; after `sbx --no-input --cloud rm -f <box>`, `sbx --cloud ls` prints `No sandboxes found` (or `[]` with `--json`).
+- **Seen on:** sbx 0.51.0, measured (2026-11-07 probes: interactive `sbx --cloud create ...` without `--no-input` and six `--allow-network` flags timed out at `NETWORK POLICY ... Proceed? (y/N)` with `No sandboxes found`; `sbx --no-input --cloud create ...` with all six `--allow-network` flags returned `CREATE_RC=0`, `policy ls <box> --format json` showed all six rules on `<box>` only while account-level `policy ls --format json` remained `deny-all` with empty allow/deny lists, and `rm -f <box>` returned 0 with `No sandboxes found`; the two-step `--no-input` create without `--allow-network` plus `policy allow network --sandbox <box>` was also separately verified on 0.51.0).
+
 ### deny-all-403
 
 - **Symptom:** `curl`, a package install or a pull fails in the box; other hosts work.
@@ -58,10 +74,10 @@ error. "Measured" below means a run on a target project, not independently repro
 
 - **Symptom:** every cloud command fails, and `sbx_check.py` reports `account`.
 - **Error:** `not signed in to Docker`
-- **Cause:** no login, or a TLS filter breaking it. This exact text was not captured in a log here.
-- **Fix:** run `sbx login`. Behind a TLS filter, set `GODEBUG=tlsmlkem=0` first. With no person there, [sign in with a token](use-cases/contributor-prs.md#signing-in-with-no-person-there).
-- **Confirm:** `sbx --cloud ls --json` prints a list.
-- **Seen on:** sbx 0.50.1.
+- **Cause:** no login, or a TLS filter breaking it. This exact text was not captured in a log here. An exit-0 `sbx --cloud ls` printing `No sandboxes found` (or `[]` with `--json`) is an authenticated empty inventory, not a sign-in or service failure ([#create-allow-network-prompt](#create-allow-network-prompt)).
+- **Fix:** check `sbx diagnose --json` (`Authentication` and `Global network policy` checks) first; if not signed in, run `sbx login`. Behind a TLS filter, set `GODEBUG=tlsmlkem=0` first. With no person there, [sign in with a token](use-cases/contributor-prs.md#signing-in-with-no-person-there).
+- **Confirm:** `sbx diagnose --json` reports `Authentication: pass` (`authenticated`) and `sbx --cloud ls --json` prints a JSON list (`[]` when no boxes exist).
+- **Seen on:** sbx 0.50.1; `sbx diagnose --json` verified on sbx 0.51.0 (2026-11-07).
 
 ### concurrent-create-429
 
@@ -169,8 +185,8 @@ error. "Measured" below means a run on a target project, not independently repro
 - **Symptom:** a backgrounded fleet was stopped, and its boxes keep billing.
 - **Error:** no error: nothing ran.
 - **Cause:** on Windows a background stop or a closed terminal is `TerminateProcess`, which runs no clean-up.
-- **Fix:** run the fleet in a foreground terminal, stop it with Ctrl+C or Ctrl+Break, and after a hard kill run `--sweep-only`. The TTL with `--on-timeout delete` is the only other guard. To stop a fleet already running detached, remove its boxes: `sbx --cloud rm --force <box>`. The fleet then prints `the box is gone`, goes red and leaves nothing (sbx 0.51.0, one run).
-- **Confirm:** `sbx --cloud ls --json` prints `[]`.
+- **Fix:** run the fleet in a foreground terminal where possible, stop it with Ctrl+C or Ctrl+Break, and after a hard kill run `--sweep-only`. When running detached or in the background on Windows, start the process hidden (`CREATE_NO_WINDOW` or `-WindowStyle Hidden`) with an explicit timeout and stdout/stderr redirected to a log file, and record the exact PID and box names at launch ([Windows host pitfalls](pitfalls/windows-host.md)). Before stopping or restarting a stalled background job (such as a `create` blocked on [#create-allow-network-prompt](#create-allow-network-prompt)), inspect the recorded PID and verify its matching commandline or job record; stop only that exact owned PID and remove only the exact owned boxes (`sbx --no-input --cloud rm -f <box>`), never killing by image name (`taskkill /IM`, `Stop-Process -Name`, `pkill`). The TTL with `--on-timeout delete` is the only other guard. The fleet prints `the box is gone`, goes red and leaves nothing when a running box is removed (sbx 0.51.0, one run).
+- **Confirm:** the recorded PID has exited, `sbx --cloud ls --json` prints `[]`, and `sbx --cloud secret ls --json` shows no leftover scoped secret for the owned box.
 - **Seen on:** sbx 0.50.1 on Windows 11, measured. Again on 0.51.0 (gate 6, one run): `taskkill /F` on the fleet left the box running and its scoped secret in place; the box was deleted by its own TTL (4 minutes, `--on-timeout delete`) about 4 minutes after create; the secret stayed until `--sweep-only` removed it. CTRL_BREAK to the fleet's process group ended it with exit 130, the boxes removed within 9 s and an empty account. A bare CTRL_BREAK used to end it with no clean-up (fixed).
 
 ## Trust
