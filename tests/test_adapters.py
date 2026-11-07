@@ -24,7 +24,7 @@ from sbxlib.adapters.files import RunDirectory, protected_paths
 from sbxlib.adapters.gh_cli import GhCli
 from sbxlib.adapters.git_cli import GitCli
 from sbxlib.adapters.junit_xml import UnreadableJunit, read_dir
-from sbxlib.adapters.sbx_cli import SbxCli, create_flags
+from sbxlib.adapters.sbx_cli import CREATE_TIMEOUT_S, SbxCli, create_flags
 from sbxlib.domain.fleet import RunRequest
 from sbxlib.domain.junit import Outcome
 from sbxlib.domain.profile import OutputPolicy
@@ -163,8 +163,37 @@ class Sbx(unittest.TestCase):
     def test_a_real_create_passes_the_snapshot(self) -> None:
         self.assertEqual(self.cli.create("acme-shards-01-k3f9", self.request).rc, 0)
 
+    def test_create_runs_with_no_input_allowlist_and_timeout(self) -> None:
+        runner = mock.Mock(return_value=Done(0))
+        SbxCli(runner).create("acme-shards-01-k3f9", self.request)
+        argv, stdin, timeout = runner.call_args_list[0].args
+        self.assertEqual(argv[:4], ["sbx", "--no-input", "--cloud", "create"])
+        self.assertEqual([argv[i + 1] for i, word in enumerate(argv) if word == "--allow-network"],
+                         ["github.com", "**.githubusercontent.com", "pypi.org"])
+        self.assertIsNone(stdin)
+        self.assertEqual(timeout, CREATE_TIMEOUT_S)
+
     def test_the_fake_refuses_a_flag_sbx_does_not_have(self) -> None:
         self.assertIn("unknown flag", self.fake(["sbx", "--cloud", "rm", "--purge", "x"]).err)
+        self.assertIn("unknown flag", self.fake(["sbx", "--bogus", "--cloud", "ls", "--json"]).err)
+
+    def test_the_fake_dispatches_every_verb_with_no_input_and_preserves_calls(self) -> None:
+        box = "acme-shards-01-k3f9"
+        self.assertEqual(self.cli.create(box, self.request).rc, 0)
+        self.assertEqual([(row.name, row.cpus) for row in self.cli.boxes()], [(box, 8)])
+        self.assertEqual(self.cli.run(box, "true").rc, 0)
+        self.assertEqual(self.cli.upload("local.sh", box, "/home/agent/run.sh").rc, 0)
+        self.assertEqual(self.cli.download(box, "/home/agent/out.txt", "local.txt").rc, 0)
+        self.assertEqual(self.cli.account_policy().mode, "deny-all")
+        self.assertEqual(self.cli.set_scoped(box, "github", "v1").rc, 0)
+        self.assertEqual(self.cli.set_scoped(box, "custom:api.example.com:KEY", "v2").rc, 0)
+        self.assertEqual(len(self.cli.secrets()), 2)
+        self.assertEqual(self.cli.remove_scoped(box, "github").rc, 0)
+        self.assertEqual(self.cli.remove_scoped(box, "custom:api.example.com:KEY").rc, 0)
+        self.assertEqual(self.cli.remove(box).rc, 0)
+        self.assertTrue(all(call[:2] == ["--no-input", "--cloud"] for call in self.fake.calls))
+        self.assertEqual(self.fake.verbs(), ["create", "ls", "exec", "cp", "cp", "policy ls",
+                                             "secret set", "secret set-custom", "secret ls", "secret rm", "secret rm", "rm"])
 
     def test_a_secret_value_goes_on_stdin(self) -> None:
         self.cli.set_scoped("box", "github", "VALUE")
