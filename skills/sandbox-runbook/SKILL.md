@@ -102,7 +102,7 @@ A short local test run. Anything needing a writable store shared across boxes ([
 
 1. Send a box only what you would publish; never put a secret in a brief, kit or command. [Credentials](docs/pitfalls/credentials.md).
 2. Give every box a TTL (`--on-timeout delete`). On Windows a background stop runs no clean-up: [entry](docs/troubleshooting.md#windows-background-stop), [Windows host](docs/pitfalls/windows-host.md).
-3. List boxes and secrets before the run, stop with Ctrl+C or SIGTERM, and compare final listings (`rm` exits 0 before removal finishes). After a hard kill: `sbx_fleet.py --project <name> --sweep-only`.
+3. Monitor every box until `sbx --cloud ls` no longer lists it; never trust `rm`'s exit (0 before removal ends, non-zero for a box a timed-out `create` never made). List before and after, retry with backoff, report a box still listed by name, and charge spend from that evidence. Local runners follow `confirm_gone`. After a hard kill: `sbx_fleet.py --project <name> --sweep-only`.
 4. Keep box names unique: a scoped secret outlives its box and the next box with that name receives it. [Entry](docs/troubleshooting.md#scoped-secret-outlives-rm).
 5. Set a scoped secret before `create`; a running box never sees a later one. [Credentials](docs/pitfalls/credentials.md).
 6. One writer per shared store; locks do not cross boxes. [Shared storage](docs/pitfalls/shared-storage.md).
