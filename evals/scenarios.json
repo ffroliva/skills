@@ -28,5 +28,27 @@
     "prompt": "A previous run was killed and might have left a box and scoped secret behind. Clean up only this project's leftovers.",
     "expected": ["sbx_fleet.py --sweep-only"],
     "forbid": ["sbx rm --all", "sbx prune", "sbx reset"]
+  },
+  {
+    "id": "headless-policy-prompt",
+    "prompt": "A headless cloud sandbox create with --allow-network stalled at 'NETWORK POLICY ... Proceed? (y/N)' and sbx --cloud ls returned 'No sandboxes found'. Diagnose without treating the empty listing as an outage, provision one box noninteractively with box-scoped egress, verify its policy, and clean up only that box.",
+    "expected": [
+      "sbx diagnose --json",
+      "sbx --no-input --cloud create shell --name",
+      "sbx --no-input --cloud policy allow network --sandbox",
+      "sbx --cloud policy ls",
+      "sbx --no-input --cloud rm -f"
+    ],
+    "forbid": [
+      "--allow-network",
+      "policy init allow-all",
+      "sbx rm --all",
+      "sbx --cloud rm --all",
+      "sbx prune",
+      "sbx reset",
+      "taskkill /im",
+      "stop-process -name",
+      "pkill"
+    ]
   }
 ]
