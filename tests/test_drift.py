@@ -214,7 +214,7 @@ class Snapshot(unittest.TestCase):
             return Done(0, "x")
 
         SbxCli(run).help(("rm",))
-        self.assertEqual(asked, [["sbx", "--cloud", "rm", "--help"]])
+        self.assertEqual(asked, [["sbx", "--no-input", "--cloud", "rm", "--help"]])
 
 
 class Latest(unittest.TestCase):

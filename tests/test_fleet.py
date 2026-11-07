@@ -396,7 +396,7 @@ class Cleanup(Base):
 
     def test_a_custom_secret_host_is_allowed_for_egress(self) -> None:
         self.custom_run()
-        create = next(call for call in self.sbx.calls if call[1] == "create")
+        create = next(call for call in self.sbx.calls if call[call.index("--cloud") + 1] == "create")
         self.assertIn("api.example.com", create)
 
     def test_a_malformed_custom_secret_is_refused_before_create(self) -> None:
@@ -545,7 +545,7 @@ class Cleanup(Base):
 
     def test_an_unreadable_final_listing_is_said_out_loud(self) -> None:
         def on_call(args: list[str]) -> None:
-            if args[1:2] == ["rm"]:
+            if args[args.index("--cloud") + 1 : args.index("--cloud") + 2] == ["rm"]:
                 self.sbx.fail["ls"] = Done(1, "", "boom")
 
         self.sbx.on_call = on_call
@@ -554,7 +554,7 @@ class Cleanup(Base):
 
     def test_an_unreadable_final_listing_never_exits_zero(self) -> None:
         def on_call(args: list[str]) -> None:
-            if args[1:2] == ["rm"]:
+            if args[args.index("--cloud") + 1 : args.index("--cloud") + 2] == ["rm"]:
                 self.sbx.fail["ls"] = Done(1, "", "boom")
 
         self.sbx.on_call = on_call
