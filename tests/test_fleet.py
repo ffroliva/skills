@@ -1158,7 +1158,34 @@ class Signals(Base):
         self._stop("SIGBREAK")
 
 
-BASH = shutil.which("bash")  # by full path: on Windows a bare name finds the WSL launcher in System32
+def _bash_executable() -> str | None:
+    if os.name != "nt":
+        return shutil.which("bash")
+    git = shutil.which("git")
+    if git is None:
+        return None
+    root = Path(git).resolve().parent.parent
+    return next(
+        (str(path) for path in (root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe") if path.is_file()),
+        None,
+    )
+
+
+BASH = _bash_executable()
+
+
+@unittest.skipUnless(os.name == "nt", "Windows-specific")
+class BashSelection(unittest.TestCase):
+    def test_windows_prefers_git_bash_over_wsl_launcher(self) -> None:
+        git = shutil.which("git")
+        if git is None:
+            self.skipTest("git is not installed")
+        root = Path(git).resolve().parent.parent
+        candidates = (root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe")
+        preferred = next((path for path in candidates if path.is_file()), None)
+        if preferred is None:
+            self.skipTest("Git Bash is not installed")
+        self.assertEqual(Path(BASH).resolve(), preferred.resolve())
 
 
 @unittest.skipUnless(BASH and shutil.which("git"), "needs bash and git")
